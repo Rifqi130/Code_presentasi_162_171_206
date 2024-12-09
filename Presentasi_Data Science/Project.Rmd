@@ -1,0 +1,347 @@
+---
+title: "Project"
+author: "Rifqi"
+date: "2024-12-03"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### 1. *Import Library*
+
+```{r}
+library(tidyverse)
+library(tidymodels)
+library(here)
+```
+
+
+### 2. *Import Dataset*
+```{r}
+# Membaca dataset AirQualityUCI.csv
+airquality_uci <- read.csv(here("AirQualityUCI.csv"), sep = ";", na.strings = c("NA", "-200"))
+
+airquality_uci <- airquality_uci %>%
+  mutate(across(-c(Date, Time), ~ str_replace_all(as.character(.), ",", "."))) %>%
+  mutate(across(-c(Date, Time), as.numeric))
+#View(airquality_uci)
+
+head(airquality_uci)
+```
+
+## *Data Preprocessing*
+
+### 3. *Data Imputation*
+
+```{r}
+airquality1_imputed <- airquality_uci %>%
+  mutate(across(where(is.numeric), ~ if_else(is.na(.), mean(., na.rm = TRUE), .)))
+head(airquality1_imputed, 15)
+```
+
+###Imputasi data
+
+```{r}
+airquality_uci$CO.GT.[is.na(airquality_uci$CO.GT.)] <- mean(airquality_uci$CO.GT., na.rm = TRUE)
+airquality_uci$PT08.S1.CO.[is.na(airquality_uci$PT08.S1.CO.)] <- mean(airquality_uci$PT08.S1.CO., na.rm = TRUE)
+airquality_uci$NMHC.GT.[is.na(airquality_uci$NMHC.GT.)] <- mean(airquality_uci$NMHC.GT., na.rm = TRUE)
+airquality_uci$C6H6.GT.[is.na(airquality_uci$C6H6.GT.)] <- mean(airquality_uci$C6H6.GT., na.rm = TRUE)
+airquality_uci$PT08.S2.NMHC.[is.na(airquality1$PT08.S2.NMHC.)] <- mean(airquality_uci$PT08.S2.NMHC., na.rm = TRUE)
+airquality_uci$NOx.GT.[is.na(airquality_uci$NOx.GT.)] <- mean(airquality_uci$NOx.GT., na.rm = TRUE)
+airquality_uci$PT08.S3.NOx.[is.na(airquality_uci$PT08.S3.NOx.)] <- mean(airquality_uci$PT08.S3.NOx., na.rm = TRUE)
+airquality_uci$NO2.GT.[is.na(airquality_uci$NO2.GT.)] <- mean(airquality_uci$NO2.GT., na.rm = TRUE)
+airquality_uci$PT08.S4.NO2.[is.na(airquality_uci$PT08.S4.NO2.)] <- mean(airquality_uci$PT08.S4.NO2., na.rm = TRUE)
+airquality_uci$PT08.S5.O3.[is.na(airquality_uci$PT08.S5.O3.)] <- mean(airquality_uci$PT08.S5.O3., na.rm = TRUE)
+airquality_uci$T[is.na(airquality_uci$T)] <- mean(airquality_uci$T, na.rm = TRUE)
+airquality_uci$X[is.na(airquality_uci$X)] <- mean(airquality_uci$X, na.rm = TRUE)
+airquality_uci$X.1[is.na(airquality_uci$X.1)] <- mean(airquality_uci$X.1, na.rm = TRUE)
+airquality_uci$RH[is.na(airquality_uci$RH)] <- mean(airquality_uci$RH, na.rm = TRUE)
+airquality_uci$AH[is.na(airquality_uci$AH)] <- mean(airquality_uci$AH, na.rm = TRUE)
+
+head(airquality_uci, 15)
+```
+
+
+
+### 4. Pemilihan Kolom 
+
+```{r}
+library(dplyr)
+
+# Mengonversi kolom Date menjadi format POSIXct
+airquality_uci <- airquality_uci %>%
+  mutate(Date = as.POSIXct(Date, format = "%d/%m/%Y"))
+
+head(airquality_uci, 15)
+```
+
+### 5Membuang semua kolom kecuali Date, CO.GT. , C6H6.GT. , T dan Rh. pada kali ini T akan di rename menjadi Temperature
+
+```{r}
+airquality_uci_new <- airquality_uci %>%
+  select(Date, CO.GT. , C6H6.GT. ,  T,  RH) %>%
+  rename(Temperature = T )
+
+
+head(airquality_uci_new, 10)
+```
+
+## Data Visualization
+
+### 6. Perubahan Kualitas Udara
+
+```{r}
+library(ggplot2)
+
+ggplot(airquality_uci_new, aes(x = Date, y = Temperature)) +
+  geom_line(color = "blue") +         
+  geom_point(color = "red") +          
+  labs(title = "Kualitas Temperatur",
+       x = "Hari",
+       y = "Temperature") +
+  theme_minimal()
+```
+
+
+### 7. Data Splitting
+
+```{r}
+set.seed(410)
+airquality_uci_new_split = airquality_uci_new %>%
+initial_split(prop = 0.8)
+airquality_uci_new_split
+```
+
+## Data Modelling
+
+### 8. *Scaling Data*
+
+
+```{r}
+# Memasukkan library yang diperlukan
+library(dplyr)
+library(cluster)
+library(factoextra)
+
+# Pastikan kolom yang digunakan adalah numerik dan hanya numerik yang akan di-scaling
+airquality_uci_new_scaled <- airquality_uci_new %>%
+  drop_na() %>%  # Menghapus baris dengan NA
+  select(where(is.numeric)) %>%  # Hanya memilih kolom numerik
+  mutate(across(everything(), ~ (. - min(.)) / (max(.) - min(.))))  # Normalisasi data
+
+# Menampilkan 15 data pertama setelah normalisasi
+head(airquality_uci_new_scaled, 15)
+
+# Membagi metode clustering (misalnya, K-means dengan 3 cluster)
+set.seed(123)  # Untuk reproduksi hasil
+kmeans_result <- kmeans(airquality_uci_new_scaled, centers = 3, nstart = 25)
+
+# Menambahkan hasil kluster ke data yang sudah discaled
+airquality_uci_new_scaled$Cluster <- as.factor(kmeans_result$cluster)
+
+# Menampilkan data dengan kolom Cluster
+#View(airquality_uci_new_scaled)
+
+
+```
+
+```{r}
+# Menambahkan metode clustering (misalnya, K-means dengan 3 cluster)
+set.seed(123)  # Untuk reproduksi hasil
+kmeans_result <- kmeans(airquality_uci_new_scaled, centers = 3, nstart = 25)
+
+# Menambahkan hasil kluster ke data yang sudah discaled
+airquality_uci_new_scaled$Cluster <- as.factor(kmeans_result$cluster)
+
+# Menampilkan data dengan kolom Cluster
+head(airquality_uci_new_scaled, 15)
+#View(airquality_uci_new_scaled)
+```
+
+
+```{r}
+table(airquality_uci_new_scaled$Cluster)  # Mengecek jumlah data dalam setiap klaster
+
+# Visualisasi K-means clustering dengan 3 cluster
+ggplot(airquality_uci_new_scaled, aes(x = RH, y = Temperature, color = Cluster)) +  # Ganti V1 dan V2 sesuai fitur
+  geom_point() +  # Menambahkan titik untuk setiap data
+  labs(title = "Visualisasi K-means Clustering dengan 3 Cluster",
+       x = "Kelembapan (RH)",  # Ganti sesuai dengan fitur X1 yang relevan
+       y = "Temperatur (Temperature)") +  # Ganti sesuai dengan fitur X2 yang relevan
+  scale_color_manual(values = c("red", "green", "yellow")) +  # Menentukan warna untuk setiap cluster
+  theme_minimal()
+```
+
+
+
+### 9 Pembuatan Resep
+
+
+```{r}
+airquality_uci_new_recipe = training(airquality_uci_new_split) %>%
+  recipe() %>%
+  update_role(
+    RH,
+    CO.GT.,
+    C6H6.GT.,
+    new_role = "predictor"
+    ) %>%
+  update_role(
+    Temperature,
+    new_role = "outcome"
+    ) %>%
+  update_role(
+    Date,
+    new_role = "ID"
+    ) 
+airquality_uci_new_recipe
+```
+
+### 10. Terapkan Resep
+
+
+```{r}
+airquality_uci_new_training = airquality_uci_new_recipe %>%
+  prep() %>%
+  bake(
+    training(airquality_uci_new_split)
+    )
+airquality_uci_new_testing = airquality_uci_new_recipe %>%
+  prep() %>%
+  bake(
+    testing(airquality_uci_new_split)
+  )
+
+head(airquality_uci_new_training, 15)
+head(airquality_uci_new_testing, 15)
+```
+
+
+### 11. *Training* Model
+
+
+```{r}
+airquality_uci_new_lm = linear_reg(mode = "regression") %>%
+  set_engine("lm") %>%
+  fit(
+    Temperature  ~ . -Date,
+    data = airquality_uci_new_training
+    )
+airquality_uci_new_lm
+```
+
+### 12. Evaluasi Model
+
+```{r}
+airquality_uci_new_lm %>%
+  predict(airquality_uci_new_testing) %>%
+  bind_cols(airquality_uci_new_testing) %>%
+  metrics(
+    truth = Temperature,
+    estimate = .pred
+)
+```
+
+
+###shiny
+
+```{r}
+# Memuat library yang dibutuhkan
+library(shiny)
+library(factoextra)
+library(dplyr)
+
+# Membaca dataset dan melakukan scaling serta clustering
+airquality_uci <- read.csv("AirQualityUCI.csv", sep = ";", na.strings = c("NA", "-200"))
+airquality_uci <- airquality_uci %>%
+  mutate(across(-c(Date, Time), ~ str_replace_all(as.character(.), ",", "."))) %>%
+  mutate(across(-c(Date, Time), as.numeric))
+
+# Menyaring data yang relevan
+airquality_uci_new <- airquality_uci %>%
+  select(CO.GT., C6H6.GT., T, RH) %>%
+  rename(Temperature = T)
+
+# Melakukan normalisasi pada data
+airquality_uci_new_scaled <- airquality_uci_new %>%
+  drop_na() %>%
+  mutate(across(everything(), ~ (. - min(.)) / (max(.) - min(.))))
+
+# Menambahkan metode clustering (K-means dengan 3 cluster)
+set.seed(123)
+kmeans_result <- kmeans(airquality_uci_new_scaled, centers = 3, nstart = 25)
+
+# UI Shiny
+ui <- fluidPage(
+  titlePanel("Aplikasi Clustering - Kualitas Udara"),
+  
+  sidebarLayout(
+    sidebarPanel(
+      numericInput("CO_GT", "Masukkan nilai CO.GT. (0-1)", min = 0, max = 1, value = 0.5),
+      numericInput("C6H6_GT", "Masukkan nilai C6H6.GT. (0-1)", min = 0, max = 1, value = 0.5),
+      numericInput("Temperature", "Masukkan nilai Temperature (0-1)", min = 0, max = 1, value = 0.5),
+      numericInput("RH", "Masukkan nilai RH (0-1)", min = 0, max = 1, value = 0.5),
+      actionButton("predict", "Prediksi"),
+      actionButton("reset", "Reset")
+    ),
+    
+    mainPanel(
+      h4("Output Cluster"),
+      textOutput("cluster_output")
+    )
+  )
+)
+
+# Server Shiny
+server <- function(input, output, session) {
+  
+  observeEvent(input$predict, {
+    # Membuat data input pengguna
+    user_data <- tibble(
+      CO.GT. = input$CO_GT,
+      C6H6.GT. = input$C6H6_GT,
+      Temperature = input$Temperature,
+      RH = input$RH
+    )
+    
+    # Melakukan normalisasi pada input pengguna
+    user_data_scaled <- user_data %>%
+  mutate(across(everything(), ~ (. - min(airquality_uci_new_scaled$CO.GT.)) / 
+                         (max(airquality_uci_new_scaled$CO.GT.) - min(airquality_uci_new_scaled$CO.GT.))))
+    
+    # Menentukan cluster untuk data input pengguna
+    cluster_pred <- kmeans_result$cluster[which.min(
+      apply(kmeans_result$centers, 1, function(x) sum((user_data_scaled - x)^2))
+    )]
+    
+    # Output cluster yang sesuai
+    output$cluster_output <- renderText({
+      paste("Cluster yang sesuai: ", cluster_pred)
+    })
+  })
+  
+  # Reset input dan output ketika tombol reset ditekan
+  observeEvent(input$reset, {
+    # Mengatur ulang semua input ke nilai default
+    updateNumericInput(session, "CO_GT", value = 0.5)
+    updateNumericInput(session, "C6H6_GT", value = 0.5)
+    updateNumericInput(session, "Temperature", value = 0.5)
+    updateNumericInput(session, "RH", value = 0.5)
+    
+    # Mengatur ulang output cluster
+    output$cluster_output <- renderText({
+      "Cluster yang sesuai: "
+    })
+  })
+}
+
+# Menjalankan aplikasi Shiny
+shinyApp(ui = ui, server = server)
+
+
+
+```
+
+
